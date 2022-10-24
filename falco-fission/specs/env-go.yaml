@@ -7,13 +7,13 @@ metadata:
 spec:
   builder:
     command: build
-    image: fission/go-builder-1.14
+    image: fission/go-builder-1.16
   imagepullsecret: ""
   keeparchive: false
   poolsize: 3
   resources: {}
   runtime:
-    image: fission/go-env-1.14
+    image: fission/go-env-1.16
     podspec:
       serviceAccountName: falco-pod-delete
       containers:
