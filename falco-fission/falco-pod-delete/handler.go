@@ -46,7 +46,7 @@ type Alert struct {
 	} `json:"output_fields"`
 }
 
-var criticalNamespaces = []string{"kube-system", "kube-public", "kube-node-lease", "falco", "fission", "fission-function"}
+var monitoredNamespaces = []string{"dvwa"}
 
 func Handler(w http.ResponseWriter, r *http.Request) {
 	var alert Alert
@@ -62,31 +62,25 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		podName := alert.OutputFields.K8SPodName
 		namespace := alert.OutputFields.K8SNsName
 
-		var critical bool
-		for _, ns := range criticalNamespaces {
+		for _, ns := range monitoredNamespaces {
 			if ns == namespace {
-				critical = true
-				break
+				_, err := kubeClient.CoreV1().Pods(namespace).Get(context.Background(), podName, metaV1.GetOptions{})
+				if err != nil {
+					log.Printf("\n[ WARN ] Failed to get pod '%s' in '%s' namespace", podName, namespace)
+					return
+				}
+
+				log.Printf("Deleting pod %s from namespace %s", podName, namespace)
+				err = kubeClient.CoreV1().Pods(namespace).Delete(context.Background(), podName, metaV1.DeleteOptions{})
+				if err != nil {
+					log.Printf("\n[ ERROR ] Failed to delete pod: %v", err)
+					w.WriteHeader(http.StatusInternalServerError)
+					w.Write([]byte(err.Error()))
+				}
 			}
 		}
 
-		if !critical {
-			_, err := kubeClient.CoreV1().Pods(namespace).Get(context.Background(), podName, metaV1.GetOptions{})
-			if err != nil {
-				log.Printf("\n[ WARN ] Failed to get pod '%s' in '%s' namespace", podName, namespace)
-				return
-			}
-
-			log.Printf("Deleting pod %s from namespace %s", podName, namespace)
-			err = kubeClient.CoreV1().Pods(namespace).Delete(context.Background(), podName, metaV1.DeleteOptions{})
-			if err != nil {
-				log.Printf("\n[ ERROR ] Failed to delete pod: %v", err)
-				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte(err.Error()))
-			}
-		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
 	}
-
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
 }
